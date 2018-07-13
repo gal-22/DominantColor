@@ -12,12 +12,10 @@ import android.hardware.Camera;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
-import android.support.annotation.RequiresApi;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.CardView;
-import android.util.Log;
 import android.view.SurfaceHolder;
 import android.widget.FrameLayout;
 import android.widget.TextView;
@@ -26,20 +24,23 @@ import android.widget.Toast;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements Camera.PreviewCallback {
 
+    // Constants
+    private final int CAMERA_PERMISSION_CODE = 1;
+
+    // Objects
     private android.hardware.Camera mCamera;
     private CameraPreview mPreview;
     private SurfaceHolder surfaceHolder;
-    private Thread thread;
-    // variables
-    private int CAMERA_PERMISSION_CODE = 1;
-    private int frameHeight;
-    private int frameWidth;
-    private byte[] cameraData;
+
+    // Variables
+    private long lastFrameCheckTimestamp = 0;
+
     // UI Views
     private FrameLayout preview;
     private FrameLayout bottomFrame;
@@ -48,25 +49,27 @@ public class MainActivity extends AppCompatActivity {
     private CardView colorCardView;
     private CardView colorCardView2;
 
-    @RequiresApi(api = Build.VERSION_CODES.M) // TODO check on that
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
         initViews();
+        initCamera();
+    }
+
+    private void initCamera() {
+        // Getting permission for using the camera
+        getCameraPermission();
+
         // Create an instance of Camera
         mCamera = getCameraInstance();
-        //getting parameters
-        Camera.Parameters parameters = mCamera.getParameters();
-        frameWidth = parameters.getPreviewSize().width;
-        frameHeight = parameters.getPreviewSize().height;
-        cameraData = new byte[frameHeight * frameWidth];
+
+        // Set camera display orientation
+        // TODO handle changing camera orientation to fit device orientation.
         mCamera.setDisplayOrientation(90);
         mPreview = new CameraPreview(this, mCamera);
         surfaceHolder = mPreview.getmHolder();
-        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
-            Toast.makeText(this, "Granted", Toast.LENGTH_SHORT).show();
-        else requestCameraPermission();
         preview.addView(mPreview);
 
         try {
@@ -76,8 +79,17 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        mCamera.setPreviewCallback(previewCallback);
-        updateColors();
+        mCamera.setPreviewCallback(this);
+    }
+
+    private void getCameraPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
+                Toast.makeText(this, "Granted", Toast.LENGTH_SHORT).show();
+            else requestCameraPermission();
+        } else {
+            //TODO Handle for version lower then 23
+        }
     }
 
     @Override
@@ -89,7 +101,6 @@ public class MainActivity extends AppCompatActivity {
             mCamera.release();
             mCamera = null;
         }
-        thread.interrupt();
     }
 
     @Override
@@ -171,72 +182,47 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void updateColors() {
-
-        thread = new Thread() {
-            @Override
-            public void run() {
-                try {
-                    while (!isInterrupted()) {
-                        Thread.sleep(10000);
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                previewCallback.onPreviewFrame(cameraData, mCamera);
-                            }
-
-                        });
-                    }
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                thread.interrupt();
-            }
-        };
-        thread.start();
+    public Bitmap createBitmapFromFrame(byte[] frameData, Camera.Parameters parameters, int widthFrame, int heightFrame) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        YuvImage yuvImage = new YuvImage(frameData, parameters.getPreviewFormat(), widthFrame, heightFrame, null);
+        yuvImage.compressToJpeg(new Rect(0, 0, widthFrame, heightFrame), 90, out);
+        byte[] imageBytes = out.toByteArray();
+        Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
+        try {
+            out.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        try {
+            out.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return bitmap;
     }
 
-
-    private Camera.PreviewCallback previewCallback = new Camera.PreviewCallback() {
-        @Override
-        public void onPreviewFrame(byte[] data, Camera camera) {
-            // Do something with the frame
-            Camera.Parameters parameters = camera.getParameters();
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            YuvImage yuvImage = new YuvImage(data, parameters.getPreviewFormat(), parameters.getPreviewSize().width, parameters.getPreviewSize().height, null);
-            yuvImage.compressToJpeg(new Rect(0, 0, parameters.getPreviewSize().width, parameters.getPreviewSize().height), 90, out);
-            byte[] imageBytes = out.toByteArray();
-            Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
-            try {
-                out.flush();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            try {
-                out.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            renderImageFrame(bitmap);
-        }
-    };
-
-    public void renderImageFrame(Bitmap bitmap) {
-        HashMap<String, Integer> pixelValues = findColorUsage(bitmap);
+    public void renderImageFrame(Bitmap bitmap, int frameWidth, int frameHeight) {
+        HashMap<String, Integer> pixelValues = findColorUsage(bitmap, frameWidth, frameHeight);
         ArrayList<HashMap.Entry> mostUsedColorsEntries;
         mostUsedColorsEntries = findTopColors(pixelValues);
-        double percentage =  100 *  (pixelValues.get(mostUsedColorsEntries.get(0).getKey() + "") / (double) (frameHeight * frameWidth));
+
+
+        // Calculating the percentage of a color according to the screen size.
+        double percentage = 100 * (pixelValues.get(mostUsedColorsEntries.get(0).getKey() + "") / (double) (frameHeight * frameWidth));
         double percentage2 = 100 * (pixelValues.get(mostUsedColorsEntries.get(1).getKey() + "") / (double) (frameHeight * frameWidth));
+
         percentageTv.setText(percentage + "%");
         percentageTv2.setText(percentage2 + "%");
+
         String usedEntry = (String) mostUsedColorsEntries.get(0).getKey();
         String usedEntry2 = (String) mostUsedColorsEntries.get(1).getKey();
+
         colorCardView.setBackgroundColor(Integer.parseInt(usedEntry));
         colorCardView2.setBackgroundColor(Integer.parseInt(usedEntry2));
     }
 
 
-    public HashMap<String, Integer> findColorUsage(Bitmap bitmap) {
+    public HashMap<String, Integer> findColorUsage(Bitmap bitmap, int frameWidth, int frameHeight) {
         HashMap<String, Integer> pixelValues = new HashMap<>();
         for (int w = 0; w < frameWidth; w++) {
             for (int h = 0; h < frameHeight; h++) {
@@ -262,13 +248,12 @@ public class MainActivity extends AppCompatActivity {
         ArrayList<HashMap.Entry> mostUsedColors = new ArrayList<>();
         int minPos = 0;
         int minValue = 0;
-        for(HashMap.Entry<String, Integer> entry : sortedPixels.entrySet()) {
-            if(mostUsedColors.size() < 5) mostUsedColors.add(entry);
+        for (HashMap.Entry<String, Integer> entry : sortedPixels.entrySet()) {
+            if (mostUsedColors.size() < 5) mostUsedColors.add(entry);
             else if (mostUsedColors.size() == 5) {
-                 minPos = findMinPos(mostUsedColors);
-                 minValue = (int) mostUsedColors.get(minPos).getValue();
-            }
-            else if(entry.getValue() > minValue) {
+                minPos = findMinPos(mostUsedColors);
+                minValue = (int) mostUsedColors.get(minPos).getValue();
+            } else if (entry.getValue() > minValue) {
                 mostUsedColors.add(minPos, entry);
                 minPos = findMinPos(mostUsedColors);
                 minValue = (int) mostUsedColors.get(minPos).getValue();
@@ -280,13 +265,31 @@ public class MainActivity extends AppCompatActivity {
     public int findMinPos(ArrayList<HashMap.Entry> arrayList) {
         int minValue = (int) arrayList.get(0).getValue();
         int minPos = 0;
-        for(int i = 1; i < arrayList.size(); i ++) {
-            if((int) arrayList.get(i).getValue() < minValue) {
+        for (int i = 1; i < arrayList.size(); i++) {
+            if ((int) arrayList.get(i).getValue() < minValue) {
                 minValue = (int) arrayList.get(i).getValue();
                 minPos = i;
             }
         }
-        return  minPos;
+        return minPos;
+    }
+
+    @Override
+    public void onPreviewFrame(byte[] data, Camera camera) {
+        long timestamp = new Date().getTime();
+        // The function is being called for every frame but we check for every 100 ms.
+        if (timestamp - lastFrameCheckTimestamp > 100) {
+            lastFrameCheckTimestamp = timestamp;
+            // Getting frame's width and height.
+            int widthFrame = camera.getParameters().getPreviewSize().width;
+            int heightFrame = camera.getParameters().getPreviewSize().height;
+
+            // Creating bitmap from data and camera parameters
+            Bitmap bitmap = createBitmapFromFrame(data, camera.getParameters(), widthFrame, heightFrame);
+
+            // Rendering the image from bitmap
+            renderImageFrame(bitmap, widthFrame, heightFrame);
+        }
     }
 }
 
