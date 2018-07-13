@@ -262,28 +262,34 @@ public class MainActivity extends AppCompatActivity {
 
     // receives Hashtable with all pixels recurrences returns top 5 most used colors
     public ArrayList<HashMap.Entry> findTopColors(HashMap<String, Integer> sortedPixels) {
-        HashMap.Entry maxEntry;
         ArrayList<HashMap.Entry> mostUsedColors = new ArrayList<>();
-        for (int i = 0; i < 5; i++) {
-            maxEntry = getMaxEntry(sortedPixels);
-            mostUsedColors.add(maxEntry);
-            sortedPixels.remove(maxEntry);
+        int minPos = 0;
+        int minValue = 0;
+        for(HashMap.Entry<String, Integer> entry : sortedPixels.entrySet()) {
+            if(mostUsedColors.size() < 5) mostUsedColors.add(entry);
+            else if (mostUsedColors.size() == 5) {
+                 minPos = findMinPos(mostUsedColors);
+                 minValue = (int) mostUsedColors.get(minPos).getValue();
+            }
+            else if(entry.getValue() > minValue) {
+                mostUsedColors.add(minPos, entry);
+                minPos = findMinPos(mostUsedColors);
+                minValue = (int) mostUsedColors.get(minPos).getValue();
+            }
         }
-
-
         return mostUsedColors;
     }
 
-    public HashMap.Entry getMaxEntry(HashMap<String, Integer> hashMap) {
-        HashMap.Entry<String, Integer> maxEntry = null;
-
-        for (HashMap.Entry<String, Integer> entry : hashMap.entrySet()) {
-            if (maxEntry == null || entry.getValue() > maxEntry.getValue()) {
-                maxEntry = entry;
+    public int findMinPos(ArrayList<HashMap.Entry> arrayList) {
+        int minValue = (int) arrayList.get(0).getValue();
+        int minPos = 0;
+        for(int i = 1; i < arrayList.size(); i ++) {
+            if((int) arrayList.get(i).getValue() < minValue) {
+                minValue = (int) arrayList.get(i).getValue();
+                minPos = i;
             }
         }
-        return maxEntry;
+        return  minPos;
     }
-
 }
 
