@@ -225,9 +225,6 @@ public class MainActivity extends AppCompatActivity {
         HashMap<String, Integer> pixelValues = findColorUsage(bitmap);
         ArrayList<HashMap.Entry> mostUsedColorsEntries;
         mostUsedColorsEntries = findTopColors(pixelValues);
-        Log.i("fafa" , pixelValues.get(mostUsedColorsEntries.get(1).getKey() + "") + "");
-        Log.i("kaka" , (frameHeight * frameWidth) + "");
-        Log.i("allShit",   (pixelValues.get(mostUsedColorsEntries.get(0).getKey() + "") / (frameHeight * frameWidth)) + "");
         double percentage =  100 *  (pixelValues.get(mostUsedColorsEntries.get(0).getKey() + "") / (double) (frameHeight * frameWidth));
         double percentage2 = 100 * (pixelValues.get(mostUsedColorsEntries.get(1).getKey() + "") / (double) (frameHeight * frameWidth));
         percentageTv.setText(percentage + "%");
