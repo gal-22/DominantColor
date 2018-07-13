@@ -27,10 +27,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Hashtable;
-import java.util.Map;
-import java.util.PriorityQueue;
-import java.util.Set;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -229,15 +225,18 @@ public class MainActivity extends AppCompatActivity {
         HashMap<String, Integer> pixelValues = findColorUsage(bitmap);
         ArrayList<HashMap.Entry> mostUsedColorsEntries;
         mostUsedColorsEntries = findTopColors(pixelValues);
-        double percentage = (frameHeight * frameWidth) / pixelValues.get(mostUsedColorsEntries.get(0).getKey() + "");
-        double percentage2 = (frameHeight * frameWidth) / pixelValues.get(mostUsedColorsEntries.get(1).getKey() + "");
+        Log.i("fafa" , pixelValues.get(mostUsedColorsEntries.get(1).getKey() + "") + "");
+        Log.i("kaka" , (frameHeight * frameWidth) + "");
+        Log.i("allShit",   (pixelValues.get(mostUsedColorsEntries.get(0).getKey() + "") / (frameHeight * frameWidth)) + "");
+        double percentage =  100 *  (pixelValues.get(mostUsedColorsEntries.get(0).getKey() + "") / (double) (frameHeight * frameWidth));
+        double percentage2 = 100 * (pixelValues.get(mostUsedColorsEntries.get(1).getKey() + "") / (double) (frameHeight * frameWidth));
         percentageTv.setText(percentage + "%");
         percentageTv2.setText(percentage2 + "%");
         String usedEntry = (String) mostUsedColorsEntries.get(0).getKey();
         String usedEntry2 = (String) mostUsedColorsEntries.get(1).getKey();
         colorCardView.setBackgroundColor(Integer.parseInt(usedEntry));
         colorCardView2.setBackgroundColor(Integer.parseInt(usedEntry2));
-        }
+    }
 
 
     public HashMap<String, Integer> findColorUsage(Bitmap bitmap) {
@@ -251,8 +250,7 @@ public class MainActivity extends AppCompatActivity {
                 int color = Color.rgb(redValue, greenValue, blueValue);
                 if (pixelValues.get(color + "") == null) {
                     pixelValues.put(color + "", 1);
-                }
-                else {
+                } else {
                     int value = pixelValues.get(color + "") + 1;
                     pixelValues.put(color + "", value);
                 }
@@ -266,18 +264,20 @@ public class MainActivity extends AppCompatActivity {
     public ArrayList<HashMap.Entry> findTopColors(HashMap<String, Integer> sortedPixels) {
         HashMap.Entry maxEntry;
         ArrayList<HashMap.Entry> mostUsedColors = new ArrayList<>();
-        for(int i = 0; i < 5; i++) {
+        for (int i = 0; i < 5; i++) {
             maxEntry = getMaxEntry(sortedPixels);
             mostUsedColors.add(maxEntry);
             sortedPixels.remove(maxEntry);
         }
+
+
         return mostUsedColors;
     }
 
     public HashMap.Entry getMaxEntry(HashMap<String, Integer> hashMap) {
-        HashMap.Entry<String,Integer> maxEntry = null;
+        HashMap.Entry<String, Integer> maxEntry = null;
 
-        for(HashMap.Entry<String,Integer> entry : hashMap.entrySet()) {
+        for (HashMap.Entry<String, Integer> entry : hashMap.entrySet()) {
             if (maxEntry == null || entry.getValue() > maxEntry.getValue()) {
                 maxEntry = entry;
             }
