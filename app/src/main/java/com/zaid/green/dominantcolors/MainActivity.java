@@ -16,6 +16,7 @@ import android.view.SurfaceHolder;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -24,7 +25,7 @@ public class MainActivity extends AppCompatActivity implements Camera.PreviewCal
 
     // Constants
     private final int CAMERA_PERMISSION_CODE = 1;
-    private final int CHECK_FRAME_EVERY_MILIS = 1000;
+    private final int CHECK_FRAME_EVERY_MILIS = 1500;
 
     // Objects
     private android.hardware.Camera mCamera;
@@ -63,33 +64,33 @@ public class MainActivity extends AppCompatActivity implements Camera.PreviewCal
         frameRenderer.setOnRenderListener(this);
 
         initViews();
-        initCamera();
+        // Getting permission for using the camera, opens if it has
+        getCameraPermissionAndInit();
     }
 
     // https://developer.android.com/guide/topics/media/camera
     // I learned about the initialization of the camera from the android developers site
     private void initCamera() {
-        // Getting permission for using the camera
-        getCameraPermission();
+        if(mCamera == null) {
+            // Create an instance of Camera
+            mCamera = getCameraInstance();
 
-        // Create an instance of Camera
-        mCamera = getCameraInstance();
+            // Set camera display orientation
+            // TODO handle changing camera orientation to fit device orientation.
+            mCamera.setDisplayOrientation(90);
+            mPreview = new CameraPreview(this, mCamera);
+            surfaceHolder = mPreview.getmHolder();
+            preview.addView(mPreview);
 
-        // Set camera display orientation
-        // TODO handle changing camera orientation to fit device orientation.
-        mCamera.setDisplayOrientation(90);
-        mPreview = new CameraPreview(this, mCamera);
-        surfaceHolder = mPreview.getmHolder();
-        preview.addView(mPreview);
+            try {
+                mCamera.setPreviewDisplay(surfaceHolder);
+                mCamera.startPreview();
 
-        try {
-            mCamera.setPreviewDisplay(surfaceHolder);
-            mCamera.startPreview();
-
-        } catch (Exception e) {
-            e.printStackTrace();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            mCamera.setPreviewCallback(this);
         }
-        mCamera.setPreviewCallback(this);
     }
 
     public void stopCamera() {
@@ -101,10 +102,13 @@ public class MainActivity extends AppCompatActivity implements Camera.PreviewCal
 
     //  https://blog.xamarin.com/requesting-runtime-permissions-in-android-marshmallow/
     //  Some information about handling camera permissions was taken for here
-    private void getCameraPermission() {
+    //  The function checks if it has camera permission and calls init camera only if it has.
+    private void getCameraPermissionAndInit() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
+            if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
                 Toast.makeText(this, "Granted", Toast.LENGTH_SHORT).show();
+                initCamera();
+            }
             else requestCameraPermission();
         } else {
             //TODO Handle for version lower then 23
@@ -139,7 +143,8 @@ public class MainActivity extends AppCompatActivity implements Camera.PreviewCal
     protected void onResume() {
         super.onResume();
         if (mCamera == null) {
-            initCamera();
+            // checks if there is permission and if it has opens camera
+            getCameraPermissionAndInit();
         }
     }
 
@@ -272,4 +277,3 @@ public class MainActivity extends AppCompatActivity implements Camera.PreviewCal
         return "R:" + red + "G:" + green + "B:" + blue;
     }
 }
-

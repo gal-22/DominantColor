@@ -17,7 +17,7 @@ import java.util.HashMap;
 public class FrameRenderer {
 
     // Constants
-    private final int MISTAKE_OFFSET = 8;
+    private final int MISTAKE_OFFSET = 20;
 
     // Variables
     private Context context;
@@ -31,7 +31,6 @@ public class FrameRenderer {
     public FrameRenderer(Context context) {
         this.context = context;
     }
-
     // https://blog.mindorks.com/android-core-looper-handler-and-handlerthread-bd54d69fe91a
     // Some information about running threads in background was taken from here
     public void renderFrameAsync(final byte[] data, final Camera camera) {
