@@ -25,7 +25,7 @@ public class MainActivity extends AppCompatActivity implements Camera.PreviewCal
 
     // Constants
     private final int CAMERA_PERMISSION_CODE = 1;
-    private final int CHECK_FRAME_EVERY_MILIS = 1500;
+    private final int CHECK_FRAME_EVERY_MILIS = 1000;
 
     // Objects
     private android.hardware.Camera mCamera;
@@ -60,9 +60,9 @@ public class MainActivity extends AppCompatActivity implements Camera.PreviewCal
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+
         frameRenderer = new FrameRenderer(this);
         frameRenderer.setOnRenderListener(this);
-
         initViews();
         // Getting permission for using the camera, opens if it has
         getCameraPermissionAndInit();
