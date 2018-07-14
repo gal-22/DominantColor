@@ -3,11 +3,7 @@ package com.zaid.green.dominantcolors;
 import android.Manifest;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.graphics.Rect;
-import android.graphics.YuvImage;
 import android.hardware.Camera;
 import android.os.Build;
 import android.os.Bundle;
@@ -20,23 +16,21 @@ import android.view.SurfaceHolder;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.widget.Toast;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashMap;
 
-
-public class MainActivity extends AppCompatActivity implements Camera.PreviewCallback {
+public class MainActivity extends AppCompatActivity implements Camera.PreviewCallback, FrameRenderer.OnFrameRenderedListener {
 
     // Constants
     private final int CAMERA_PERMISSION_CODE = 1;
+    private final int CHECK_FRAME_EVERY_MILIS = 1000;
 
     // Objects
     private android.hardware.Camera mCamera;
     private CameraPreview mPreview;
     private SurfaceHolder surfaceHolder;
+    private FrameRenderer frameRenderer;
 
     // Variables
     private long lastFrameCheckTimestamp = 0;
@@ -44,20 +38,36 @@ public class MainActivity extends AppCompatActivity implements Camera.PreviewCal
     // UI Views
     private FrameLayout preview;
     private FrameLayout bottomFrame;
+    private TextView rgbTv;
+    private TextView rgbTv2;
+    private TextView rgbTv3;
+    private TextView rgbTv4;
+    private TextView rgbTv5;
     private TextView percentageTv;
     private TextView percentageTv2;
+    private TextView percentageTv3;
+    private TextView percentageTv4;
+    private TextView percentageTv5;
     private CardView colorCardView;
     private CardView colorCardView2;
+    private CardView colorCardView3;
+    private CardView colorCardView4;
+    private CardView colorCardView5;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        frameRenderer = new FrameRenderer(this);
+        frameRenderer.setOnRenderListener(this);
+
         initViews();
         initCamera();
     }
 
+    // https://developer.android.com/guide/topics/media/camera
+    // I learned about the initialization of the camera from the android developers site
     private void initCamera() {
         // Getting permission for using the camera
         getCameraPermission();
@@ -82,6 +92,15 @@ public class MainActivity extends AppCompatActivity implements Camera.PreviewCal
         mCamera.setPreviewCallback(this);
     }
 
+    public void stopCamera() {
+        mCamera.setPreviewCallback(null);
+        mCamera.stopPreview();
+        mCamera.release();
+        mCamera = null;
+    }
+
+    //  https://blog.xamarin.com/requesting-runtime-permissions-in-android-marshmallow/
+    //  Some information about handling camera permissions was taken for here
     private void getCameraPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
@@ -96,10 +115,23 @@ public class MainActivity extends AppCompatActivity implements Camera.PreviewCal
     protected void onPause() {
         super.onPause();
         if (mCamera != null) {
-            mCamera.setPreviewCallback(null);
-            mCamera.stopPreview();
-            mCamera.release();
-            mCamera = null;
+            stopCamera();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (mCamera != null) {
+            stopCamera();
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (mCamera != null) {
+            stopCamera();
         }
     }
 
@@ -107,30 +139,28 @@ public class MainActivity extends AppCompatActivity implements Camera.PreviewCal
     protected void onResume() {
         super.onResume();
         if (mCamera == null) {
-            mCamera = getCameraInstance();
-            mPreview = new CameraPreview(this, mCamera);
-            mCamera.setDisplayOrientation(90);
-            surfaceHolder = mPreview.getmHolder();
-            preview.addView(mPreview);
-            try {
-                mCamera.setPreviewDisplay(surfaceHolder);
-                mCamera.startPreview();
-
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-
+            initCamera();
         }
     }
 
     public void initViews() {
         preview = findViewById(R.id.camera_frame_layout);
+        rgbTv = findViewById(R.id.rgbTv);
+        rgbTv2 = findViewById(R.id.rgbTv2);
+        rgbTv3 = findViewById(R.id.rgbTv3);
+        rgbTv4 = findViewById(R.id.rgbTv4);
+        rgbTv5 = findViewById(R.id.rgbTv5);
         bottomFrame = findViewById(R.id.colors_frame_layout);
-        percentageTv = findViewById(R.id.colorPercentage);
+        percentageTv = findViewById(R.id.colorPercentageTv);
+        percentageTv2 = findViewById(R.id.colorPercentageTv2);
+        percentageTv3 = findViewById(R.id.colorPercentageTv3);
+        percentageTv4 = findViewById(R.id.colorPercentageTv4);
+        percentageTv5 = findViewById(R.id.colorPercentageTv5);
         colorCardView = findViewById(R.id.colorDataCv);
-        percentageTv2 = findViewById(R.id.percentageTv2);
         colorCardView2 = findViewById(R.id.colorDataCv2);
-
+        colorCardView3 = findViewById(R.id.colorDataCv3);
+        colorCardView4 = findViewById(R.id.colorDataCv4);
+        colorCardView5 = findViewById(R.id.colorDataCv5);
     }
 
     public static Camera getCameraInstance() {
@@ -143,6 +173,8 @@ public class MainActivity extends AppCompatActivity implements Camera.PreviewCal
         return c; // returns null if camera is unavailable
     }
 
+    //  https://blog.xamarin.com/requesting-runtime-permissions-in-android-marshmallow/
+    //  Information about handling camera permissions was taken for here
     private void requestCameraPermission() {
         if (ActivityCompat.shouldShowRequestPermissionRationale(this,
                 Manifest.permission.CAMERA)) {
@@ -171,6 +203,7 @@ public class MainActivity extends AppCompatActivity implements Camera.PreviewCal
         }
     }
 
+    // The function is being called when a user decides to give a permission or not
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         if (requestCode == CAMERA_PERMISSION_CODE) {
@@ -182,114 +215,61 @@ public class MainActivity extends AppCompatActivity implements Camera.PreviewCal
         }
     }
 
-    public Bitmap createBitmapFromFrame(byte[] frameData, Camera.Parameters parameters, int widthFrame, int heightFrame) {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        YuvImage yuvImage = new YuvImage(frameData, parameters.getPreviewFormat(), widthFrame, heightFrame, null);
-        yuvImage.compressToJpeg(new Rect(0, 0, widthFrame, heightFrame), 90, out);
-        byte[] imageBytes = out.toByteArray();
-        Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
-        try {
-            out.flush();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        try {
-            out.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return bitmap;
-    }
-
-    public void renderImageFrame(Bitmap bitmap, int frameWidth, int frameHeight) {
-        HashMap<String, Integer> pixelValues = findColorUsage(bitmap, frameWidth, frameHeight);
-        ArrayList<HashMap.Entry> mostUsedColorsEntries;
-        mostUsedColorsEntries = findTopColors(pixelValues);
-
-
-        // Calculating the percentage of a color according to the screen size.
-        double percentage = 100 * (pixelValues.get(mostUsedColorsEntries.get(0).getKey() + "") / (double) (frameHeight * frameWidth));
-        double percentage2 = 100 * (pixelValues.get(mostUsedColorsEntries.get(1).getKey() + "") / (double) (frameHeight * frameWidth));
-
-        percentageTv.setText(percentage + "%");
-        percentageTv2.setText(percentage2 + "%");
-
-        String usedEntry = (String) mostUsedColorsEntries.get(0).getKey();
-        String usedEntry2 = (String) mostUsedColorsEntries.get(1).getKey();
-
-        colorCardView.setBackgroundColor(Integer.parseInt(usedEntry));
-        colorCardView2.setBackgroundColor(Integer.parseInt(usedEntry2));
-    }
-
-
-    public HashMap<String, Integer> findColorUsage(Bitmap bitmap, int frameWidth, int frameHeight) {
-        HashMap<String, Integer> pixelValues = new HashMap<>();
-        for (int w = 0; w < frameWidth; w++) {
-            for (int h = 0; h < frameHeight; h++) {
-                int pixel = bitmap.getPixel(w, h);
-                int redValue = Color.red(pixel);
-                int blueValue = Color.blue(pixel);
-                int greenValue = Color.green(pixel);
-                int color = Color.rgb(redValue, greenValue, blueValue);
-                if (pixelValues.get(color + "") == null) {
-                    pixelValues.put(color + "", 1);
-                } else {
-                    int value = pixelValues.get(color + "") + 1;
-                    pixelValues.put(color + "", value);
-                }
-            }
-        }
-        return pixelValues;
-    }
-
-
-    // receives Hashtable with all pixels recurrences returns top 5 most used colors
-    public ArrayList<HashMap.Entry> findTopColors(HashMap<String, Integer> sortedPixels) {
-        ArrayList<HashMap.Entry> mostUsedColors = new ArrayList<>();
-        int minPos = 0;
-        int minValue = 0;
-        for (HashMap.Entry<String, Integer> entry : sortedPixels.entrySet()) {
-            if (mostUsedColors.size() < 5) mostUsedColors.add(entry);
-            else if (mostUsedColors.size() == 5) {
-                minPos = findMinPos(mostUsedColors);
-                minValue = (int) mostUsedColors.get(minPos).getValue();
-            } else if (entry.getValue() > minValue) {
-                mostUsedColors.add(minPos, entry);
-                minPos = findMinPos(mostUsedColors);
-                minValue = (int) mostUsedColors.get(minPos).getValue();
-            }
-        }
-        return mostUsedColors;
-    }
-
-    public int findMinPos(ArrayList<HashMap.Entry> arrayList) {
-        int minValue = (int) arrayList.get(0).getValue();
-        int minPos = 0;
-        for (int i = 1; i < arrayList.size(); i++) {
-            if ((int) arrayList.get(i).getValue() < minValue) {
-                minValue = (int) arrayList.get(i).getValue();
-                minPos = i;
-            }
-        }
-        return minPos;
-    }
 
     @Override
     public void onPreviewFrame(byte[] data, Camera camera) {
         long timestamp = new Date().getTime();
-        // The function is being called for every frame but we check for every 100 ms.
-        if (timestamp - lastFrameCheckTimestamp > 100) {
+        // The function is being called for every frame but we check for every 1000 ms.
+        if (timestamp - lastFrameCheckTimestamp > CHECK_FRAME_EVERY_MILIS) {
             lastFrameCheckTimestamp = timestamp;
-            // Getting frame's width and height.
-            int widthFrame = camera.getParameters().getPreviewSize().width;
-            int heightFrame = camera.getParameters().getPreviewSize().height;
-
-            // Creating bitmap from data and camera parameters
-            Bitmap bitmap = createBitmapFromFrame(data, camera.getParameters(), widthFrame, heightFrame);
-
-            // Rendering the image from bitmap
-            renderImageFrame(bitmap, widthFrame, heightFrame);
+            frameRenderer.renderFrameAsync(data, camera);
         }
+    }
+
+    @Override
+    public void onRenderedMostUsedColors(ArrayList<FrameRenderer.ColorUsage> mostUsedColors) {
+
+        // Calculating the percentage of a color according to the screen size.
+        double percentage = mostUsedColors.get(0).getColorPercentage();
+        double percentage2 = mostUsedColors.get(1).getColorPercentage();
+        double percentage3 = mostUsedColors.get(2).getColorPercentage();
+        double percentage4 = mostUsedColors.get(3).getColorPercentage();
+        double percentage5 = mostUsedColors.get(4).getColorPercentage();
+
+
+        percentageTv.setText(new DecimalFormat("##.####").format(percentage) + "%");
+        percentageTv2.setText(new DecimalFormat("##.####").format(percentage2) + "%");
+        percentageTv3.setText(new DecimalFormat("##.####").format(percentage3) + "%");
+        percentageTv4.setText(new DecimalFormat("##.####").format(percentage4) + "%");
+        percentageTv5.setText(new DecimalFormat("##.####").format(percentage5) + "%");
+
+        String usedEntry = mostUsedColors.get(0).getColorHex();
+        String usedEntry2 = mostUsedColors.get(1).getColorHex();
+        String usedEntry3 = mostUsedColors.get(2).getColorHex();
+        String usedEntry4 = mostUsedColors.get(3).getColorHex();
+        String usedEntry5 = mostUsedColors.get(4).getColorHex();
+
+        colorCardView.setBackgroundColor(Integer.parseInt(usedEntry));
+        colorCardView2.setBackgroundColor(Integer.parseInt(usedEntry2));
+        colorCardView3.setBackgroundColor(Integer.parseInt(usedEntry3));
+        colorCardView4.setBackgroundColor(Integer.parseInt(usedEntry4));
+        colorCardView5.setBackgroundColor(Integer.parseInt(usedEntry5));
+
+        rgbTv.setText(convertColorHexToRgb(Integer.parseInt(usedEntry)));
+        rgbTv2.setText(convertColorHexToRgb(Integer.parseInt(usedEntry2)));
+        rgbTv3.setText(convertColorHexToRgb(Integer.parseInt(usedEntry3)));
+        rgbTv4.setText(convertColorHexToRgb(Integer.parseInt(usedEntry4)));
+        rgbTv5.setText(convertColorHexToRgb(Integer.parseInt(usedEntry5)));
+
+    }
+
+    // https://stackoverflow.com/questions/17183587/convert-integer-color-value-to-rgb
+    // Information about conversion was taken from here
+    public String convertColorHexToRgb(int colorHex) {
+        int red = Color.red(colorHex);
+        int green = Color.green(colorHex);
+        int blue = Color.blue(colorHex);
+        return "R:" + red + "G:" + green + "B:" + blue;
     }
 }
 
